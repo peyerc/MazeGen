@@ -3,12 +3,15 @@ package ch.reason.mazegen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,7 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import ch.reason.mazegen.ui.theme.MazeGenTheme
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,8 +49,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Maze(width: Int, height: Int) {
-    var tileSize by remember {
-        mutableStateOf(Size.Zero)
+    var tileSize by remember { mutableStateOf(Size.Zero) }
+
+    var visited by remember { mutableStateOf(setOf<Coordinates>()) }
+
+    var current by remember { mutableStateOf<Coordinates?>(null) }
+
+    LaunchedEffect(current) {
+        current?.let { visited += visited + it }
     }
 
     val maze by remember {
@@ -53,13 +64,28 @@ fun Maze(width: Int, height: Int) {
             (0 until height).map { y ->
                 (0 until width).map { x ->
                     val coordinates = Coordinates(x, y)
-                    coordinates to Cell(coordinates, tileSize, emptyList())
+                    coordinates to Cell(
+                        coordinates = coordinates,
+                        size = tileSize,
+                        visited = coordinates in visited,
+                        current = coordinates == current,
+                    )
                 }
             }.flatten().toMap()
         }
     }
 
     println("xxx Maze: ${maze[Coordinates(3, 4)]}")
+
+    LaunchedEffect(Unit) {
+        delay(1000)
+        current = Coordinates(0, 0)
+
+        while (true) {
+            delay(200)
+            current = current?.getNext(maze) ?: break
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -76,16 +102,35 @@ fun Maze(width: Int, height: Int) {
             }
     ) {
         Text(
-            text = "Hello, this maze will be of size ${width}x$height!",
-            modifier = Modifier.align(Alignment.Center)
+            text = "Maze size ${width}x$height",
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(4.dp)
+                .background(Color.White.copy(alpha = 0.65f))
         )
     }
 }
 
-data class Cell(val coordinates: Coordinates, val size: Size, val walls: List<Wall>) {
-    fun draw(scope: DrawScope) {
+private fun Coordinates.getNext(maze: Map<Coordinates, Cell>): Coordinates? {
+    val neighbours = listOf(
+        Coordinates(x + 1, y),
+        Coordinates(x, y + 1),
+        Coordinates(x - 1, y),
+        Coordinates(x, y - 1),
+    ).filter { it in maze.keys && maze[it]?.visited == false }
+    return if (!neighbours.isEmpty()) neighbours.random() else null
+}
 
-        val color = Color.Red
+data class Cell(
+    val coordinates: Coordinates,
+    val size: Size,
+    val walls: List<Wall> = listOf(Wall.Top, Wall.Left, Wall.Bottom, Wall.Right),
+    val visited: Boolean,
+    val current: Boolean,
+) {
+
+    fun draw(scope: DrawScope) {
+        val color = Color(0xFF000D50)
         val strokeWidth = 4f
         val x = coordinates.x * size.width
         val y = coordinates.y * size.height
@@ -121,10 +166,25 @@ data class Cell(val coordinates: Coordinates, val size: Size, val walls: List<Wa
                     )
             }
         }
-
+        if (current) {
+            scope.drawRect(
+                color = Color(0xA152CF44),
+                topLeft = Offset(x, y),
+                size = size,
+            )
+        } else if (visited) {
+            scope.drawRect(
+                color = Color(0xA1B300FF),
+                topLeft = Offset(x, y),
+                size = size,
+            )
+        }
     }
+
 }
+
 data class Coordinates(val x: Int, val y: Int)
+
 enum class Wall {
     Top, Right, Bottom, Left
 }
