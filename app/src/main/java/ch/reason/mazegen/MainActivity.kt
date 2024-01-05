@@ -3,9 +3,13 @@ package ch.reason.mazegen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,6 +35,7 @@ import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             MazeGenTheme {
@@ -119,6 +124,7 @@ fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0)) {
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(4.dp)
+                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
                 .background(Color.White.copy(alpha = 0.65f))
         )
     }
