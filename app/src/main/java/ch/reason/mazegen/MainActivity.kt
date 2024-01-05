@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Maze(10, 20)
+                    Maze(20, 40)
                 }
             }
         }
@@ -58,32 +58,46 @@ fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0)) {
     LaunchedEffect(Unit) {
         maze.putAll(generateMaze(height, width, tileSize))
 
-        while (true) {
-            delay(500)
+        // TODO: check if the find is expensive
+        while (maze.values.find { !it.visited } != null) {
+            delay(25)
 
             // visit current cell
             val currentCell = maze[currentCoordinates] ?: break
-            maze[currentCell.coordinates] = currentCell.copy(visited = true)
+            maze[currentCell.coordinates]?.let {
+                maze[currentCell.coordinates] = it.copy(visited = true)
+            }
 
             // get next cell
-            val next = currentCoordinates.getNext(maze) ?: break
-            val nextCell = maze[next] ?: break
+            val nextCell = currentCell.getNext(maze)
 
-            // remove walls of both cells
-            val currentWallToRemove = findWallToRemove(currentCoordinates, next)
-            maze[currentCell.coordinates] = currentCell.copy(
-                walls = currentCell.walls.filter { it != currentWallToRemove },
-            )
-            val nextWallToRemove = findWallToRemove(next, currentCoordinates)
-            maze[nextCell.coordinates] = nextCell.copy(
-                walls = nextCell.walls.filter { it != nextWallToRemove },
-            )
+            nextCell?.let {
+                // save current cell to stack
+                path.add(currentCoordinates)
 
-            // save current cell to stack
-            path.add(currentCoordinates)
+                // remove walls of both cells
+                val currentWallToRemove = findWallToRemove(currentCoordinates, nextCell.coordinates)
+                maze[currentCell.coordinates]?.let { current ->
+                    maze[current.coordinates] = current.copy(
+                        walls = current.walls.filter { it != currentWallToRemove },
+                    )
+                }
+                val nextWallToRemove = findWallToRemove(nextCell.coordinates, currentCoordinates)
+                maze[nextCell.coordinates]?.let { next ->
+                    maze[next.coordinates] = next.copy(
+                        walls = next.walls.filter { it != nextWallToRemove },
+                    )
+                }
 
-            // move on
-            currentCoordinates = next
+                // move on
+                currentCoordinates = nextCell.coordinates
+            } ?: run {
+                println("backtrack: $currentCoordinates")
+                // backtrack
+                val previousCell = path.removeLast()
+                currentCoordinates = previousCell
+            }
+
         }
     }
 
@@ -160,13 +174,13 @@ private fun wallToRemove(a: Coordinates, b: Coordinates): Wall? = when {
     else -> null
 }
 
-private fun Coordinates.getNext(maze: Map<Coordinates, Cell>): Coordinates? {
+private fun Cell.getNext(maze: Map<Coordinates, Cell>): Cell? {
     val neighbours = listOf(
-        Coordinates(x + 1, y),
-        Coordinates(x, y + 1),
-        Coordinates(x - 1, y),
-        Coordinates(x, y - 1),
-    ).filter { it in maze.keys && maze[it]?.visited == false }
+        Coordinates(coordinates.x + 1, coordinates.y),
+        Coordinates(coordinates.x, coordinates.y + 1),
+        Coordinates(coordinates.x - 1, coordinates.y),
+        Coordinates(coordinates.x, coordinates.y - 1),
+    ).mapNotNull { maze[it] }.filter { !it.visited }
     return if (neighbours.isNotEmpty()) neighbours.random() else null
 }
 
