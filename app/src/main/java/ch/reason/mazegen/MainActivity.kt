@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -125,7 +126,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
         maze[currentCoordinates]?.let {
             maze[it.coordinates] = it.copy(start = true, walls = Wall.entries)
         }
-        while (true) {
+        while (maze.values.find { !it.visited } != null) {
             // visit current cell
             val currentCell = maze[currentCoordinates] ?: return@LaunchedEffect
             maze[currentCell.coordinates]?.let {
@@ -169,15 +170,14 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
 
                     // move on
                     currentCoordinates = nextCell.coordinates
-                    delay(25)
+                    delay(5)
                 } ?: run {
                     // backtrack
                     val previousCell = path.removeLast()
                     currentCoordinates = previousCell
-                    delay(5)
+                    delay(1)
                 }
             }
-            if (path.isEmpty()) break
         }
 
         // mark goal
@@ -200,7 +200,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     currentCoordinates = nextCell.coordinates
                 }
             }
-            delay(100)
+            delay(25)
         }
     }
 
@@ -240,6 +240,10 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                     else if (cell.goal) Color.Black
                                     else if (cell.visited) Color(0xFFA23DDC)
                                     else Color.White
+                                )
+                                .border(
+                                    width = .1.dp,
+                                    color = Color.Black.copy(alpha = 0.1f),
                                 )
                                 .drawBehind {
                                     val wallWidthPx = wallWidth.toPx()
