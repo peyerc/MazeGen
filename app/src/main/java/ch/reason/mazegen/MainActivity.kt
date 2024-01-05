@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ch.reason.mazegen.ui.theme.MazeGenTheme
@@ -44,7 +45,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Maze(20, 40)
+                    Maze(5, 10)
                 }
             }
         }
@@ -61,9 +62,12 @@ fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0)) {
     LaunchedEffect(Unit) {
         maze.putAll(generateMaze(height, width, tileSize))
 
-        while (maze.values.find { !it.visited } != null) {
-            delay(25)
+        // mark start
+        maze[currentCoordinates]?.let {
+            maze[currentCoordinates] = it.copy(start = true)
+        }
 
+        while (maze.values.find { !it.visited } != null) {
             // visit current cell
             val currentCell = maze[currentCoordinates] ?: break
             maze[currentCell.coordinates]?.let {
@@ -91,16 +95,39 @@ fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0)) {
                     )
                 }
 
+                //set distance to start
+                maze[nextCell.coordinates]?.let { next ->
+                    maze[next.coordinates] = next.copy(
+                        distanceToStart = path.size,
+                    )
+                }
+
                 // move on
                 currentCoordinates = nextCell.coordinates
+                delay(25)
             } ?: run {
                 // backtrack
                 val previousCell = path.removeLast()
                 currentCoordinates = previousCell
+                delay(5)
             }
 
         }
+
+        // mark target
+        val target = maze.values.maxByOrNull { it.distanceToStart }?.coordinates ?: start
+        println("target: $target")
+        maze[target]?.let {
+            maze[target] = it.copy(target = true)
+        }
+
+        val newTarget = maze.values.find { it.target }
+        println("newTarget: $newTarget")
+
+        currentCoordinates = start
     }
+
+    val textMeasurer = rememberTextMeasurer()
 
     Box(
         modifier = Modifier
@@ -115,6 +142,7 @@ fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0)) {
                     cell.draw(
                         scope = this,
                         highlighted = cell.coordinates == currentCoordinates,
+                        textMeasurer = textMeasurer,
                     )
                 }
             }
