@@ -1,11 +1,11 @@
 package ch.reason.mazegen
 
-import android.hardware.SensorManager.SENSOR_DELAY_GAME
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,26 +55,31 @@ class MainActivity : ComponentActivity() {
                     val sensorValue by rememberAccelerometerSensorValueAsState(
 //                        samplingPeriodUs = SENSOR_DELAY_GAME,
                     )
-                    val direction by remember {
+                    val directions by remember {
                         derivedStateOf {
                             val (x, y, _) = sensorValue.value
-
                             val threshold = 1
-                            // map x and y value to direction
-                            when {
+                            val dirX = when {
                                 x > threshold -> Direction.West
                                 x < -threshold -> Direction.East
+                                else -> null
+                            }
+                            val dirY = when {
                                 y > threshold -> Direction.South
                                 y < -threshold -> Direction.North
                                 else -> null
                             }
+                            listOfNotNull(dirX, dirY)
                         }
                     }
 
                     Maze(
                         width = 20,
                         height = 30,
-                        direction = direction,
+                        directions = directions,
+                        goalReached = {
+                            println("Goal reached!!")
+                        }
                     )
                 }
             }
@@ -83,31 +88,30 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0), direction: Direction? = null) {
+fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goalReached: () -> Unit = {}) {
     var tileSize by remember { mutableStateOf(Size.Zero) }
     val maze = remember { mutableStateMapOf<Coordinates, Cell>() }
     val path = remember { mutableStateListOf<Coordinates>() }
-    var currentCoordinates by remember { mutableStateOf(start) }
+    var start by remember { mutableStateOf<Coordinates?>(null) }
+    var currentCoordinates by remember { mutableStateOf<Coordinates?>(null) }
 
     var isGameRunning by remember { mutableStateOf(false) }
 
-    LaunchedEffect(direction) {
-        println("Current direction: $direction")
-    }
-
-    LaunchedEffect(Unit) {
+    LaunchedEffect(start) {
+        maze.clear()
         maze.putAll(generateMaze(height, width, tileSize))
 
-        println("maze: ${maze.values.groupBy { it.coordinates.y }}")
+        if (start == null) return@LaunchedEffect
+        currentCoordinates = start
 
         // mark start
         maze[currentCoordinates]?.let {
-            maze[currentCoordinates] = it.copy(start = true)
+            maze[it.coordinates] = it.copy(start = true)
         }
 
-        while (maze.values.find { !it.visited } != null) {
+        while (true) {
             // visit current cell
-            val currentCell = maze[currentCoordinates] ?: break
+            val currentCell = maze[currentCoordinates] ?: throw IllegalStateException("Current cell is null")
             maze[currentCell.coordinates]?.let {
                 maze[currentCell.coordinates] = it.copy(visited = true)
             }
@@ -115,63 +119,61 @@ fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0), direct
             // get next cell
             val nextCell = currentCell.findNext(maze)
 
-            nextCell?.let {
-                // save current cell to stack
-                path.add(currentCoordinates)
+            currentCoordinates?.let { curCoordinates ->
+                nextCell?.let {
+                    // save current cell to stack
+                    path.add(curCoordinates)
 
-                // remove walls of both cells
-                val currentWallToRemove = findWallToRemove(currentCoordinates, nextCell.coordinates)
-                maze[currentCell.coordinates]?.let { current ->
-                    maze[current.coordinates] = current.copy(
-                        walls = current.walls.filter { it != currentWallToRemove },
-                    )
-                }
-                val nextWallToRemove = findWallToRemove(nextCell.coordinates, currentCoordinates)
-                maze[nextCell.coordinates]?.let { next ->
-                    maze[next.coordinates] = next.copy(
-                        walls = next.walls.filter { it != nextWallToRemove },
-                    )
-                }
+                    // remove walls of both cells
+                    val currentWallToRemove = findWallToRemove(curCoordinates, nextCell.coordinates)
+                    maze[currentCell.coordinates]?.let { current ->
+                        maze[current.coordinates] = current.copy(
+                            walls = current.walls.filter { it != currentWallToRemove },
+                        )
+                    }
+                    val nextWallToRemove = findWallToRemove(nextCell.coordinates, curCoordinates)
+                    maze[nextCell.coordinates]?.let { next ->
+                        maze[next.coordinates] = next.copy(
+                            walls = next.walls.filter { it != nextWallToRemove },
+                        )
+                    }
 
-                //set distance to start
-                maze[nextCell.coordinates]?.let { next ->
-                    maze[next.coordinates] = next.copy(
-                        distanceToStart = path.size,
-                    )
-                }
+                    //set distance to start
+                    maze[nextCell.coordinates]?.let { next ->
+                        maze[next.coordinates] = next.copy(
+                            distanceToStart = path.size,
+                        )
+                    }
 
-                // move on
-                currentCoordinates = nextCell.coordinates
-                delay(25)
-            } ?: run {
-                // backtrack
-                val previousCell = path.removeLast()
-                currentCoordinates = previousCell
-                delay(5)
+                    // move on
+                    currentCoordinates = nextCell.coordinates
+                    delay(25)
+                } ?: run {
+                    // backtrack
+                    val previousCell = path.removeLast()
+                    currentCoordinates = previousCell
+                    delay(5)
+                }
             }
-
+            if (path.isEmpty()) break
         }
 
-        // mark target
-        val target = maze.values.maxByOrNull { it.distanceToStart }?.coordinates ?: start
-        println("target: $target")
-        maze[target]?.let {
-            maze[target] = it.copy(target = true)
+        // mark goal
+        val goal = maze.values.maxByOrNull { it.distanceToStart }?.coordinates ?: Coordinates(0, 0)
+        maze[goal]?.let {
+            maze[goal] = it.copy(goal = true)
         }
 
-        val newTarget = maze.values.find { it.target }
-        println("newTarget: $newTarget")
-
+        // return to start
         currentCoordinates = start
 
         isGameRunning = true
     }
 
-    LaunchedEffect(isGameRunning, direction) {
+    LaunchedEffect(isGameRunning, directions) {
         while (isGameRunning) {
-            direction?.let {
+            for (direction in directions) {
                 maze[currentCoordinates]?.let { currentCell ->
-                    // get direction from input
                     val nextCell = currentCell.move(maze, direction)
                     currentCoordinates = nextCell.coordinates
                 }
@@ -196,15 +198,26 @@ fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0), direct
             maze.values.sortedBy { it.coordinates.y }.groupBy { it.coordinates.y }.forEach { (_, row) ->
                 Row {
                     row.sortedBy { it.coordinates.x }.forEach { cell ->
+                        if (cell.coordinates == currentCoordinates && cell.goal) {
+                            goalReached()
+                            isGameRunning = false
+                        }
                         Box(
                             modifier = Modifier
+                                .clickable(
+                                    onClick = {
+                                        if (!isGameRunning) {
+                                            start = cell.coordinates
+                                        }
+                                    }
+                                )
 //                                .padding(wallWidth/2)
 //                                .border(1.dp, Color.Red)
                                 .size(tileSize.width.pxToDp(), tileSize.height.pxToDp())
                                 .background(
                                     if (cell.coordinates == currentCoordinates) Color.Green
-                                    else if (cell.start) Color(0xFFF5BF00)
-                                    else if (cell.target) Color.Black
+                                    else if (cell.start) Color.White
+                                    else if (cell.goal) Color.Black
                                     else if (cell.visited) Color(0xFFA23DDC)
                                     else Color.White
                                 )
@@ -252,7 +265,7 @@ fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0), direct
 //                                text = cell.distanceToStart.toString(),
 //                                fontSize = 12.sp,
 //                                modifier = Modifier.align(Alignment.Center),
-//                                color = if (cell.target) Color.White else Color.Black,
+//                                color = if (cell.goal) Color.White else Color.Black,
 //                            )
                         }
                     }

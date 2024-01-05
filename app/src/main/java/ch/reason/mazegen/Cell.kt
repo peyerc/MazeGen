@@ -48,7 +48,7 @@ data class Cell(
     val visited: Boolean = false,
     val distanceToStart: Int = 0,
     val start: Boolean = false,
-    val target: Boolean = false,
+    val goal: Boolean = false,
 )
 
 data class Coordinates(val x: Int, val y: Int)
