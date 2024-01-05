@@ -41,7 +41,7 @@ data class Cell(
 
     fun draw(scope: DrawScope, highlighted: Boolean = false, textMeasurer: TextMeasurer) {
         val color = Color(0xFFF5BF00)
-        val strokeWidth = 16f
+        val strokeWidth = 8f
         val x = coordinates.x * size.width
         val y = coordinates.y * size.height
         for (wall in walls) {

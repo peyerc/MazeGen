@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Maze(5, 10)
+                    Maze(20, 40)
                 }
             }
         }
