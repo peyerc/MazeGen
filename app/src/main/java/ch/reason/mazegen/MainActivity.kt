@@ -80,8 +80,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Maze(
-                        width = 20,
-                        height = 40,
+                        width = 15,
+                        height = 30,
                         directions = directions,
                         goalReached = {
                             println("Goal reached!!")
@@ -201,7 +201,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     currentCoordinates = nextCell.coordinates
                 }
             }
-            delay(25)
+            delay(100)
         }
     }
 
@@ -234,8 +234,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                 )
                                 .size(tileSize.width.pxToDp(), tileSize.height.pxToDp())
                                 .background(
-                                    if (cell.coordinates == currentCoordinates) Color.Green
-                                    else if (cell.start) Color.LightGray
+                                    if (cell.start) Color.LightGray
                                     else if (cell.goal) Color.Black
                                     else if (cell.visited) Color(0xFFA23DDC)
                                     else Color.White
@@ -245,6 +244,15 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                     color = Color.Black.copy(alpha = 0.1f),
                                 )
                                 .drawBehind {
+
+                                    if (cell.coordinates == currentCoordinates) {
+                                        drawCircle(
+                                            color = Color(0xFF2FFF00),
+                                            radius = tileSize.width / 4,
+                                            center = Offset(tileSize.width / 2, tileSize.height / 2),
+                                        )
+                                    }
+
                                     val wallWidthPx = wallWidth.toPx()
                                     val color = Color(0xFFF5BF00)
                                     for (wall in cell.walls) {
@@ -353,6 +361,6 @@ fun Float.pxToDp() = with(LocalDensity.current) { this@pxToDp.toDp() }
 @Composable
 fun MazePreview() {
     MazeGenTheme {
-        Maze(10, 20)
+        Maze(5, 10)
     }
 }
