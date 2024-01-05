@@ -44,7 +44,7 @@ fun findWallToRemove(
 data class Cell(
     val coordinates: Coordinates,
     val size: Size,
-    val walls: List<Wall> = listOf(Wall.North, Wall.West, Wall.South, Wall.East),
+    val walls: List<Wall> = emptyList(),
     val visited: Boolean = false,
     val distanceToStart: Int = 0,
     val start: Boolean = false,

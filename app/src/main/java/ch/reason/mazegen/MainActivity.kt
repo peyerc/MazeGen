@@ -37,6 +37,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ch.reason.mazegen.ui.theme.MazeGenTheme
 import dev.ricknout.composesensors.accelerometer.rememberAccelerometerSensorValueAsState
 import kotlinx.coroutines.delay
@@ -74,8 +75,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Maze(
-                        width = 20,
-                        height = 30,
+                        width = 5,
+                        height = 10,
                         directions = directions,
                         goalReached = {
                             println("Goal reached!!")
@@ -95,6 +96,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
     var start by remember { mutableStateOf<Coordinates?>(null) }
     var currentCoordinates by remember { mutableStateOf<Coordinates?>(null) }
 
+    var isGenerating by remember { mutableStateOf(false) }
     var isGameRunning by remember { mutableStateOf(false) }
 
     LaunchedEffect(start) {
@@ -102,13 +104,14 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
         maze.putAll(generateMaze(height, width, tileSize))
 
         if (start == null) return@LaunchedEffect
+
+        isGenerating = true
         currentCoordinates = start
 
-        // mark start
+        // mark start and set walls
         maze[currentCoordinates]?.let {
-            maze[it.coordinates] = it.copy(start = true)
+            maze[it.coordinates] = it.copy(start = true, walls = Wall.entries)
         }
-
         while (true) {
             // visit current cell
             val currentCell = maze[currentCoordinates] ?: throw IllegalStateException("Current cell is null")
@@ -121,6 +124,12 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
 
             currentCoordinates?.let { curCoordinates ->
                 nextCell?.let {
+
+                    // set walls
+                    maze[nextCell.coordinates]?.let {
+                        maze[nextCell.coordinates] = it.copy(walls = Wall.entries)
+                    }
+
                     // save current cell to stack
                     path.add(curCoordinates)
 
@@ -152,7 +161,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     // backtrack
                     val previousCell = path.removeLast()
                     currentCoordinates = previousCell
-                    delay(5)
+                    delay(10)
                 }
             }
             if (path.isEmpty()) break
@@ -211,8 +220,6 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                         }
                                     }
                                 )
-//                                .padding(wallWidth/2)
-//                                .border(1.dp, Color.Red)
                                 .size(tileSize.width.pxToDp(), tileSize.height.pxToDp())
                                 .background(
                                     if (cell.coordinates == currentCoordinates) Color.Green
@@ -271,6 +278,15 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     }
                 }
             }
+        }
+        if (!isGenerating && !isGameRunning) {
+            Text(
+                text = "Click anywhere to choose your starting tile",
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(4.dp)
+                    .background(Color.White.copy(alpha = 0.65f))
+            )
         }
         Text(
             text = "Maze size ${width}x$height",
