@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
 fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goalReached: () -> Unit = {}) {
     var tileSize by remember { mutableStateOf(Size.Zero) }
     val maze = remember { mutableStateMapOf<Coordinates, Cell>() }
-    val path = remember { mutableStateListOf<Coordinates>() }
+    val path = remember { mutableStateListOf<Cell>() }
     var start by remember { mutableStateOf<Coordinates?>(null) }
     var currentCoordinates by remember { mutableStateOf<Coordinates?>(null) }
 
@@ -116,34 +116,34 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
         maze.putAll(generateMaze(height, width, tileSize))
 
         if (start == null) return@LaunchedEffect
-
         isGenerating = true
-        currentCoordinates = start
 
-        // mark start and set walls
-        maze[currentCoordinates]?.let {
-            maze[it.coordinates] = it.copy(start = true, walls = Wall.entries)
+        // mark start, set walls and add to stack
+        maze[start]?.let {
+            maze[it.coordinates] = it.copy(
+                start = true,
+                visited = true,
+                walls = Wall.entries,
+            )
+            path.add(it)
         }
-        while (maze.values.find { !it.visited } != null) {
-            // visit current cell
-            val currentCell = maze[currentCoordinates] ?: return@LaunchedEffect
-            maze[currentCell.coordinates]?.let {
-                maze[currentCell.coordinates] = it.copy(visited = true)
-            }
+
+        while (path.isNotEmpty()) {
+
+            val currentCell = path.removeLast()
+            currentCoordinates = currentCell.coordinates
 
             // get next cell
             val nextCell = currentCell.findNext(maze)
 
             currentCoordinates?.let { curCoordinates ->
                 nextCell?.let {
+                    path.add(currentCell)
 
                     // set walls
                     maze[nextCell.coordinates]?.let {
                         maze[nextCell.coordinates] = it.copy(walls = Wall.entries)
                     }
-
-                    // save current cell to stack
-                    path.add(curCoordinates)
 
                     // remove walls of both cells
                     val currentWallToRemove = findWallToRemove(curCoordinates, nextCell.coordinates)
@@ -166,14 +166,17 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                         )
                     }
 
-                    // move on
+                    // mark visited
+                    maze[nextCell.coordinates]?.let {
+                        maze[nextCell.coordinates] = it.copy(visited = true)
+                    }
+                    // the current cell would lag behind, so we need to update it here
                     currentCoordinates = nextCell.coordinates
+
+                    // move on
+                    path.add(nextCell)
+
                     delay(5)
-                } ?: run {
-                    // backtrack
-                    val previousCell = path.removeLast()
-                    currentCoordinates = previousCell
-                    delay(1)
                 }
             }
         }
