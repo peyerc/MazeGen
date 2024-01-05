@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -15,6 +16,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -99,6 +105,13 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
     var isGenerating by remember { mutableStateOf(false) }
     var isGameRunning by remember { mutableStateOf(false) }
 
+    val resetGame = {
+        isGenerating = false
+        isGameRunning = false
+        start = null
+        currentCoordinates = null
+    }
+
     LaunchedEffect(start) {
         maze.clear()
         maze.putAll(generateMaze(height, width, tileSize))
@@ -114,7 +127,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
         }
         while (true) {
             // visit current cell
-            val currentCell = maze[currentCoordinates] ?: throw IllegalStateException("Current cell is null")
+            val currentCell = maze[currentCoordinates] ?: return@LaunchedEffect
             maze[currentCell.coordinates]?.let {
                 maze[currentCell.coordinates] = it.copy(visited = true)
             }
@@ -287,7 +300,10 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     .padding(4.dp)
                     .background(Color.White.copy(alpha = 0.65f))
             )
+        } else {
+            ResetButton(resetGame)
         }
+
         Text(
             text = "Maze size ${width}x$height",
             modifier = Modifier
@@ -299,6 +315,30 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                         .calculateBottomPadding()
                 )
                 .background(Color.White.copy(alpha = 0.65f))
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.ResetButton(resetGame:  () -> Unit) {
+    IconButton(
+        onClick = resetGame,
+        modifier = Modifier.Companion
+            .align(Alignment.BottomStart)
+            .padding(8.dp)
+            .padding(
+                bottom = WindowInsets.navigationBars
+                    .asPaddingValues()
+                    .calculateBottomPadding()
+            )
+    ) {
+        Icon(
+            Icons.Filled.Refresh,
+            contentDescription = "Restart",
+            tint = Color.Black,
+            modifier = Modifier
+                .background(Color.White.copy(0.5f))
+                .size(48.dp)
         )
     }
 }
