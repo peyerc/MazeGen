@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,7 +43,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import ch.reason.mazegen.ui.theme.MazeGenTheme
 import dev.ricknout.composesensors.accelerometer.rememberAccelerometerSensorValueAsState
 import kotlinx.coroutines.delay
@@ -203,8 +201,6 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
             delay(25)
         }
     }
-
-//    val textMeasurer = rememberTextMeasurer()
 
     Box(
         modifier = Modifier
