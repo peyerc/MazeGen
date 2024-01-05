@@ -75,8 +75,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Maze(
-                        width = 5,
-                        height = 10,
+                        width = 20,
+                        height = 40,
                         directions = directions,
                         goalReached = {
                             println("Goal reached!!")
@@ -161,7 +161,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     // backtrack
                     val previousCell = path.removeLast()
                     currentCoordinates = previousCell
-                    delay(10)
+                    delay(5)
                 }
             }
             if (path.isEmpty()) break
@@ -223,7 +223,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                 .size(tileSize.width.pxToDp(), tileSize.height.pxToDp())
                                 .background(
                                     if (cell.coordinates == currentCoordinates) Color.Green
-                                    else if (cell.start) Color.White
+                                    else if (cell.start) Color.LightGray
                                     else if (cell.goal) Color.Black
                                     else if (cell.visited) Color(0xFFA23DDC)
                                     else Color.White
