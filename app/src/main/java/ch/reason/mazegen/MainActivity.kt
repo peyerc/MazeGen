@@ -12,8 +12,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,42 +49,41 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Maze(width: Int, height: Int) {
+fun Maze(width: Int, height: Int, start: Coordinates = Coordinates(0, 0)) {
     var tileSize by remember { mutableStateOf(Size.Zero) }
-
-    var visited by remember { mutableStateOf(setOf<Coordinates>()) }
-
-    var current by remember { mutableStateOf<Coordinates?>(null) }
-
-    LaunchedEffect(current) {
-        current?.let { visited += visited + it }
-    }
-
-    val maze by remember {
-        derivedStateOf {
-            (0 until height).map { y ->
-                (0 until width).map { x ->
-                    val coordinates = Coordinates(x, y)
-                    coordinates to Cell(
-                        coordinates = coordinates,
-                        size = tileSize,
-                        visited = coordinates in visited,
-                        current = coordinates == current,
-                    )
-                }
-            }.flatten().toMap()
-        }
-    }
-
-    println("xxx Maze: ${maze[Coordinates(3, 4)]}")
+    val maze = remember { mutableStateMapOf<Coordinates, Cell>() }
+    val path = remember { mutableStateListOf<Coordinates>() }
+    var currentCoordinates by remember { mutableStateOf(start) }
 
     LaunchedEffect(Unit) {
-        delay(1000)
-        current = Coordinates(0, 0)
+        maze.putAll(generateMaze(height, width, tileSize))
 
         while (true) {
-            delay(200)
-            current = current?.getNext(maze) ?: break
+            delay(500)
+
+            // visit current cell
+            val currentCell = maze[currentCoordinates] ?: break
+            maze[currentCell.coordinates] = currentCell.copy(visited = true)
+
+            // get next cell
+            val next = currentCoordinates.getNext(maze) ?: break
+            val nextCell = maze[next] ?: break
+
+            // remove walls of both cells
+            val currentWallToRemove = findWallToRemove(currentCoordinates, next)
+            maze[currentCell.coordinates] = currentCell.copy(
+                walls = currentCell.walls.filter { it != currentWallToRemove },
+            )
+            val nextWallToRemove = findWallToRemove(next, currentCoordinates)
+            maze[nextCell.coordinates] = nextCell.copy(
+                walls = nextCell.walls.filter { it != nextWallToRemove },
+            )
+
+            // save current cell to stack
+            path.add(currentCoordinates)
+
+            // move on
+            currentCoordinates = next
         }
     }
 
@@ -97,7 +97,10 @@ fun Maze(width: Int, height: Int) {
             }
             .drawBehind {
                 for (cell in maze.values) {
-                    cell.draw(this)
+                    cell.draw(
+                        scope = this,
+                        highlighted = cell.coordinates == currentCoordinates,
+                    )
                 }
             }
     ) {
@@ -111,6 +114,52 @@ fun Maze(width: Int, height: Int) {
     }
 }
 
+private fun generateMaze(
+    height: Int,
+    width: Int,
+    tileSize: Size,
+) = (0 until height).map { y ->
+        (0 until width).map { x ->
+            val currentCoordinates = Coordinates(x, y)
+            currentCoordinates to Cell(
+                coordinates = currentCoordinates,
+                size = tileSize,
+            )
+        }
+    }.flatten().toMap()
+
+private fun findWallToRemove(
+    currentCoordinates: Coordinates,
+    nextCoordinates: Coordinates,
+): Wall? = when {
+    currentCoordinates.x < nextCoordinates.x -> Wall.Right
+    currentCoordinates.x > nextCoordinates.x -> Wall.Left
+    currentCoordinates.y < nextCoordinates.y -> Wall.Bottom
+    currentCoordinates.y > nextCoordinates.y -> Wall.Top
+    else -> null
+}
+
+private fun List<Coordinates>.wallsToRemove(coordinates: Coordinates): List<Wall> {
+    val posInStack = this.indexOf(coordinates)
+    return if (posInStack > -1) {
+        val frontWall = this.getOrNull(posInStack + 1)?.let {
+            wallToRemove(coordinates, it)
+        }
+        val backWall = this.getOrNull(posInStack - 1)?.let {
+            wallToRemove(coordinates, it)
+        }
+        listOfNotNull(frontWall, backWall)
+    } else emptyList()
+}
+
+private fun wallToRemove(a: Coordinates, b: Coordinates): Wall? = when {
+    a.x < b.x -> Wall.Right
+    a.x > b.x -> Wall.Left
+    a.y < b.y -> Wall.Bottom
+    a.y > b.y -> Wall.Top
+    else -> null
+}
+
 private fun Coordinates.getNext(maze: Map<Coordinates, Cell>): Coordinates? {
     val neighbours = listOf(
         Coordinates(x + 1, y),
@@ -118,18 +167,17 @@ private fun Coordinates.getNext(maze: Map<Coordinates, Cell>): Coordinates? {
         Coordinates(x - 1, y),
         Coordinates(x, y - 1),
     ).filter { it in maze.keys && maze[it]?.visited == false }
-    return if (!neighbours.isEmpty()) neighbours.random() else null
+    return if (neighbours.isNotEmpty()) neighbours.random() else null
 }
 
 data class Cell(
     val coordinates: Coordinates,
     val size: Size,
     val walls: List<Wall> = listOf(Wall.Top, Wall.Left, Wall.Bottom, Wall.Right),
-    val visited: Boolean,
-    val current: Boolean,
+    val visited: Boolean = false,
 ) {
 
-    fun draw(scope: DrawScope) {
+    fun draw(scope: DrawScope, highlighted: Boolean = false) {
         val color = Color(0xFF000D50)
         val strokeWidth = 4f
         val x = coordinates.x * size.width
@@ -166,9 +214,10 @@ data class Cell(
                     )
             }
         }
-        if (current) {
+
+        if (highlighted) {
             scope.drawRect(
-                color = Color(0xA152CF44),
+                color = Color(0xB921D147),
                 topLeft = Offset(x, y),
                 size = size,
             )
@@ -191,7 +240,7 @@ enum class Wall {
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
+fun MazePreview() {
     MazeGenTheme {
         Maze(10, 20)
     }
