@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,13 +36,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
@@ -62,7 +61,7 @@ fun Maze(
     directions: List<Direction> = emptyList(),
     goalReached: () -> Unit = {}
 ) {
-    var tileSize by remember { mutableStateOf(Size.Zero) }
+//    var tileSize by remember { mutableStateOf(Size.Zero) }
     val maze = remember { mutableStateMapOf<Coordinates, Cell>() }
     val path = remember { mutableStateListOf<Cell>() }
     var start by remember { mutableStateOf<Coordinates?>(null) }
@@ -127,7 +126,7 @@ fun Maze(
 
     LaunchedEffect(start) {
         maze.clear()
-        maze.putAll(generateMaze(height, width, tileSize))
+        maze.putAll(generateMaze(height, width))
 
         if (start == null) return@LaunchedEffect
         isGenerating = true
@@ -213,9 +212,6 @@ fun Maze(
     }
 
     LaunchedEffect(isGameRunning, directions, isAutoSolving) {
-
-        // input disabled
-
         while (isGameRunning) {
             for (direction in directions) {
                 maze[currentCoordinates]?.let { currentCell ->
@@ -230,29 +226,27 @@ fun Maze(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .onGloballyPositioned {
-                val tileWidth = (it.size.width / width.toFloat())
-                val tileHeight = (it.size.height / height.toFloat())
-                tileSize = Size(tileWidth, tileHeight)
-            }
+        modifier = Modifier.fillMaxSize()
     ) {
         val wallWidth = 8.dp
-        Column {
+        Column(
+            modifier = Modifier.fillMaxHeight()
+        ) {
             maze.values.sortedBy { it.coordinates.y }.groupBy { it.coordinates.y }
                 .forEach { (_, row) ->
-                    Row {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                    ) {
                         row.sortedBy { it.coordinates.x }.forEach { cell ->
                             if (cell.coordinates == currentCoordinates && cell.goal) {
                                 goalReached()
                             }
                             Box(
                                 modifier = Modifier
+                                    .fillMaxHeight().weight(1f)
                                     .clickable(
                                         onClick = { onCellClicked(cell) }
                                     )
-                                    .size(tileSize.width.pxToDp(), tileSize.height.pxToDp())
                                     .background(
                                         if (cell.start) Color.LightGray
                                         else if (cell.goal) Color.Black
@@ -269,10 +263,10 @@ fun Maze(
                                         if (cell.coordinates == currentCoordinates) {
                                             drawCircle(
                                                 color = Color(0xFF2FFF00),
-                                                radius = tileSize.width / 4,
+                                                radius = size.width / 4,
                                                 center = Offset(
-                                                    tileSize.width / 2,
-                                                    tileSize.height / 2
+                                                    size.width / 2,
+                                                    size.height / 2
                                                 ),
                                             )
                                         }
@@ -316,12 +310,12 @@ fun Maze(
                                         }
                                     }
                             ) {
-//                            Text(
-//                                text = cell.distanceToStart.toString(),
-//                                fontSize = 12.sp,
-//                                modifier = Modifier.align(Alignment.Center),
-//                                color = if (cell.goal) Color.White else Color.Black,
-//                            )
+//                                Text(
+//                                    text = cell.distanceToStart.toString(),
+//                                    fontSize = 12.sp,
+//                                    modifier = Modifier.align(Alignment.Center),
+//                                    color = if (cell.goal) Color.White else Color.Black,
+//                                )
                             }
                         }
                     }
@@ -433,19 +427,14 @@ private fun BoxScope.ResetButton(resetGame: () -> Unit) {
     }
 }
 
-@Composable
-fun Float.pxToDp() = with(LocalDensity.current) { this@pxToDp.toDp() }
-
 fun generateMaze(
     height: Int,
     width: Int,
-    tileSize: Size,
 ) = (0 until height).map { y ->
     (0 until width).map { x ->
         val currentCoordinates = Coordinates(x, y)
         currentCoordinates to Cell(
             coordinates = currentCoordinates,
-            size = tileSize,
         )
     }
 }.flatten().toMap()

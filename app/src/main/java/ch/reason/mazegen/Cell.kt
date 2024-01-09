@@ -1,10 +1,7 @@
 package ch.reason.mazegen
 
-import androidx.compose.ui.geometry.Size
-
 data class Cell(
     val coordinates: Coordinates,
-    val size: Size = Size(1f, 1f),
     val walls: List<Direction> = emptyList(),
     val visited: Boolean = false,
     val distanceToStart: Int = 0,
