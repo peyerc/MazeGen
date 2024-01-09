@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -37,7 +38,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ch.reason.mazegen.ui.theme.MazeGenTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlin.math.absoluteValue
 
 
 @Composable
@@ -46,16 +53,65 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
     val maze = remember { mutableStateMapOf<Coordinates, Cell>() }
     val path = remember { mutableStateListOf<Cell>() }
     var start by remember { mutableStateOf<Coordinates?>(null) }
+    var goal by remember { mutableStateOf<Coordinates?>(null) }
     var currentCoordinates by remember { mutableStateOf<Coordinates?>(null) }
 
     var isGenerating by remember { mutableStateOf(false) }
     var isGameRunning by remember { mutableStateOf(false) }
+    var isAutoSolving by remember { mutableStateOf(false) }
+    var autoSolverStart by remember { mutableStateOf<Coordinates?>(null) }
 
     val resetGame = {
         isGenerating = false
         isGameRunning = false
         start = null
+        autoSolverStart = null
+        isAutoSolving = false
         currentCoordinates = null
+    }
+
+    fun onCellClicked(cell: Cell) = run {
+        if (!isGameRunning && !isAutoSolving) {
+            start = cell.coordinates
+        } else {
+            isAutoSolving = true
+            autoSolverStart = cell.coordinates
+            modifyCells(maze) { it.copy(visited = false) }
+        }
+    }
+
+    LaunchedEffect(isAutoSolving, isGameRunning) {
+        if (isAutoSolving && isGameRunning) {
+            autoSolverStart?.let { autoSolverStart ->
+                currentCoordinates = autoSolverStart
+                goal?.let { goal ->
+                    val manhattenDistance = { coordinates: Coordinates ->
+                        (coordinates.x - goal.x).absoluteValue + (coordinates.y - goal.y).absoluteValue
+                    }
+                    val solverFlow = findPathWithAStar(maze, autoSolverStart, goal, h = manhattenDistance)
+                    val solverPath = mutableListOf<Coordinates>()
+                    solverFlow
+                        .flowOn(Dispatchers.IO)
+                        .onEach { (calculating, path) ->
+                            modifyCells(maze) { it.copy(calculating = it.coordinates in calculating) }
+
+                            solverPath.addAll(path)
+                            delay(15)
+                        }.onCompletion { error ->
+                            modifyCells(maze) { it.copy(calculating = false) }
+                            for (coordinates in solverPath) {
+                                maze[coordinates]?.let { cell ->
+                                    maze[cell.coordinates] = cell.copy(visited = true)
+                                }
+                                currentCoordinates = coordinates
+                                delay(25)
+                            }
+                            isAutoSolving = false
+                        }
+                        .launchIn(this)
+                }
+            }
+        }
     }
 
     LaunchedEffect(start) {
@@ -70,7 +126,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
             maze[it.coordinates] = it.copy(
                 start = true,
                 visited = true,
-                walls = Wall.entries,
+                walls = Direction.entries,
             )
             path.add(it)
         }
@@ -89,17 +145,17 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
 
                     // set walls
                     maze[nextCell.coordinates]?.let {
-                        maze[nextCell.coordinates] = it.copy(walls = Wall.entries)
+                        maze[it.coordinates] = it.copy(walls = Direction.entries)
                     }
 
                     // remove walls of both cells
-                    val currentWallToRemove = findWallToRemove(curCoordinates, nextCell.coordinates)
+                    val currentWallToRemove = curCoordinates.findWallToRemove(nextCell.coordinates)
                     maze[currentCell.coordinates]?.let { current ->
                         maze[current.coordinates] = current.copy(
                             walls = current.walls.filter { it != currentWallToRemove },
                         )
                     }
-                    val nextWallToRemove = findWallToRemove(nextCell.coordinates, curCoordinates)
+                    val nextWallToRemove = nextCell.coordinates.findWallToRemove(curCoordinates)
                     maze[nextCell.coordinates]?.let { next ->
                         maze[next.coordinates] = next.copy(
                             walls = next.walls.filter { it != nextWallToRemove },
@@ -115,7 +171,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
 
                     // mark visited
                     maze[nextCell.coordinates]?.let {
-                        maze[nextCell.coordinates] = it.copy(visited = true)
+                        maze[it.coordinates] = it.copy(visited = true)
                     }
                     // the current cell would lag behind, so we need to update it here
                     currentCoordinates = nextCell.coordinates
@@ -123,33 +179,41 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     // move on
                     path.add(nextCell)
 
-                    delay(5)
+                    delay(1)
                 }
             }
         }
 
         // mark goal
-        val goal = maze.values.maxByOrNull { it.distanceToStart }?.coordinates ?: Coordinates(0, 0)
-        maze[goal]?.let {
-            maze[goal] = it.copy(goal = true)
+        maze.values.maxByOrNull { it.distanceToStart }?.coordinates?.let { furthestCellCoordinates ->
+            maze[furthestCellCoordinates]?.let {
+                maze[it.coordinates] = it.copy(goal = true)
+                 it.coordinates
+            }
+            goal = furthestCellCoordinates
         }
 
         // return to start
         currentCoordinates = start
 
+        modifyCells(maze) { it.copy(visited = false) }
+
         isGameRunning = true
     }
 
-    LaunchedEffect(isGameRunning, directions) {
-        while (isGameRunning) {
-            for (direction in directions) {
-                maze[currentCoordinates]?.let { currentCell ->
-                    val nextCell = currentCell.move(maze, direction)
-                    currentCoordinates = nextCell.coordinates
-                }
-            }
-            delay(100)
-        }
+    LaunchedEffect(isGameRunning, directions, isAutoSolving) {
+
+        // input disabled
+
+//        while (isGameRunning) {
+//            for (direction in directions) {
+//                maze[currentCoordinates]?.let { currentCell ->
+//                    val nextCell = currentCell.move(maze, direction)
+//                    currentCoordinates = nextCell.coordinates
+//                }
+//            }
+//            delay(100)
+//        }
     }
 
     Box(
@@ -168,23 +232,19 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     row.sortedBy { it.coordinates.x }.forEach { cell ->
                         if (cell.coordinates == currentCoordinates && cell.goal) {
                             goalReached()
-                            isGameRunning = false
                         }
                         Box(
                             modifier = Modifier
                                 .clickable(
-                                    onClick = {
-                                        if (!isGameRunning) {
-                                            start = cell.coordinates
-                                        }
-                                    }
+                                    onClick = { onCellClicked(cell) }
                                 )
                                 .size(tileSize.width.pxToDp(), tileSize.height.pxToDp())
                                 .background(
                                     if (cell.start) Color.LightGray
                                     else if (cell.goal) Color.Black
-                                    else if (cell.visited) Color(0xFFA23DDC)
-                                    else Color.White
+                                    else if (cell.calculating) Color.Red
+                                    else if (cell.visited) Color(0xFF4C00FF)
+                                    else Color(0xFFA23DDC)
                                 )
                                 .border(
                                     width = .1.dp,
@@ -196,7 +256,10 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                         drawCircle(
                                             color = Color(0xFF2FFF00),
                                             radius = tileSize.width / 4,
-                                            center = Offset(tileSize.width / 2, tileSize.height / 2),
+                                            center = Offset(
+                                                tileSize.width / 2,
+                                                tileSize.height / 2
+                                            ),
                                         )
                                     }
 
@@ -204,7 +267,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                     val color = Color(0xFFF5BF00)
                                     for (wall in cell.walls) {
                                         when (wall) {
-                                            Wall.North ->
+                                            Direction.North ->
                                                 drawLine(
                                                     color = color,
                                                     start = Offset(0f, 0f),
@@ -212,7 +275,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                                     strokeWidth = wallWidthPx,
                                                 )
 
-                                            Wall.East ->
+                                            Direction.East ->
                                                 drawLine(
                                                     color = color,
                                                     start = Offset(size.width, 0f),
@@ -220,7 +283,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                                     strokeWidth = wallWidthPx,
                                                 )
 
-                                            Wall.South ->
+                                            Direction.South ->
                                                 drawLine(
                                                     color = color,
                                                     start = Offset(size.width, size.height),
@@ -228,7 +291,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                                                     strokeWidth = wallWidthPx,
                                                 )
 
-                                            Wall.West ->
+                                            Direction.West ->
                                                 drawLine(
                                                     color = color,
                                                     start = Offset(0f, size.height),
@@ -277,6 +340,12 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
     }
 }
 
+private fun modifyCells(maze: SnapshotStateMap<Coordinates, Cell>, transform: (Cell) -> Cell) {
+    for (cell in maze.values) {
+        maze[cell.coordinates] = transform(cell)
+    }
+}
+
 @Composable
 private fun BoxScope.ResetButton(resetGame:  () -> Unit) {
     IconButton(
@@ -318,11 +387,11 @@ fun generateMaze(
     }
 }.flatten().toMap()
 
-enum class Direction {
-    North,
-    East,
-    South,
-    West
+enum class Direction(val coordinates: Coordinates) {
+    North(Coordinates(0, -1)),
+    East(Coordinates(1, 0)),
+    South(Coordinates(0, 1)),
+    West(Coordinates(-1, 0));
 }
 
 @Preview(showBackground = true)
