@@ -47,8 +47,8 @@ class MainActivity : ComponentActivity() {
                     }
 
                     Maze(
-                        width = 4,
-                        height = 8,
+                        width = 8,
+                        height = 16,
                         directions = directions,
                         goalReached = {
                             println("Goal reached!!")

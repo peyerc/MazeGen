@@ -38,13 +38,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ch.reason.mazegen.ui.theme.MazeGenTheme
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlin.math.absoluteValue
+import kotlin.time.Duration.Companion.milliseconds
 
 
 @Composable
@@ -55,6 +54,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
     var start by remember { mutableStateOf<Coordinates?>(null) }
     var goal by remember { mutableStateOf<Coordinates?>(null) }
     var currentCoordinates by remember { mutableStateOf<Coordinates?>(null) }
+    var speed by remember { mutableStateOf(25.milliseconds) }
 
     var isGenerating by remember { mutableStateOf(false) }
     var isGameRunning by remember { mutableStateOf(false) }
@@ -83,7 +83,6 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
     LaunchedEffect(isAutoSolving, isGameRunning) {
         if (isAutoSolving && isGameRunning) {
             autoSolverStart?.let { autoSolverStart ->
-                currentCoordinates = autoSolverStart
                 goal?.let { goal ->
                     val manhattenDistance = { coordinates: Coordinates ->
                         (coordinates.x - goal.x).absoluteValue + (coordinates.y - goal.y).absoluteValue
@@ -91,20 +90,17 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     val solverFlow = findPathWithAStar(maze, autoSolverStart, goal, h = manhattenDistance)
                     val solverPath = mutableListOf<Coordinates>()
                     solverFlow
-                        .flowOn(Dispatchers.IO)
                         .onEach { (calculating, path) ->
                             modifyCells(maze) { it.copy(calculating = it.coordinates in calculating) }
-
                             solverPath.addAll(path)
-                            delay(15)
+                            delay(speed)
                         }.onCompletion { error ->
                             modifyCells(maze) { it.copy(calculating = false) }
                             for (coordinates in solverPath) {
                                 maze[coordinates]?.let { cell ->
                                     maze[cell.coordinates] = cell.copy(visited = true)
                                 }
-                                currentCoordinates = coordinates
-                                delay(25)
+                                delay(speed)
                             }
                             isAutoSolving = false
                         }
@@ -179,7 +175,7 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
                     // move on
                     path.add(nextCell)
 
-                    delay(1)
+                    delay(speed)
                 }
             }
         }
@@ -205,15 +201,17 @@ fun Maze(width: Int, height: Int, directions: List<Direction> = emptyList(), goa
 
         // input disabled
 
-//        while (isGameRunning) {
-//            for (direction in directions) {
-//                maze[currentCoordinates]?.let { currentCell ->
-//                    val nextCell = currentCell.move(maze, direction)
-//                    currentCoordinates = nextCell.coordinates
-//                }
-//            }
-//            delay(100)
-//        }
+        while (isGameRunning) {
+            for (direction in directions) {
+                maze[currentCoordinates]?.let { currentCell ->
+                    val nextCellCoordinates = currentCell.move(direction)
+                    maze[nextCellCoordinates]?.let {
+                        currentCoordinates = it.coordinates
+                    }
+                }
+            }
+            delay(100)
+        }
     }
 
     Box(

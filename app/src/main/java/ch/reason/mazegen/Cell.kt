@@ -27,6 +27,9 @@ data class Cell(
     fun isBlocked(direction: Direction): Boolean = direction in walls
 
     fun moveCost(direction: Direction, blockingCost: Int) = if (isBlocked(direction)) blockingCost else 1
+    fun move(direction: Direction): Coordinates =
+        if (isBlocked(direction)) coordinates else coordinates.plus(direction.coordinates)
+
 }
 
 data class Coordinates(val x: Int, val y: Int) {

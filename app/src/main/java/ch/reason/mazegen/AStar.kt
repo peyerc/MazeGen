@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.flow
 // h is the heuristic function. h(n) estimates the cost to reach goal from node n.
 fun findPathWithAStar(maze: Map<Coordinates, Cell>, start: Coordinates, goal: Coordinates, h: (Coordinates) -> Int): Flow<Pair<Set<Coordinates>,List<Coordinates>>> = flow {
 
+    val startTime = System.currentTimeMillis()
+
     val maxCost = 9999
 
     // The set of discovered nodes that may need to be (re-)expanded.
@@ -36,6 +38,7 @@ fun findPathWithAStar(maze: Map<Coordinates, Cell>, start: Coordinates, goal: Co
 
         if (current == goal) {
             emit(open to reconstructPath(cameFrom, current))
+            println("xxx Found path in ${System.currentTimeMillis() - startTime}ms")
             return@flow
         } else {
             emit(open to emptyList())
