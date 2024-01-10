@@ -38,7 +38,7 @@ fun findPathWithAStar(maze: Map<Coordinates, Cell>, start: Coordinates, goal: Co
 
         if (current == goal) {
             emit(open to reconstructPath(cameFrom, current))
-            println("xxx Found path in ${System.currentTimeMillis() - startTime}ms")
+            println("Found path in ${System.currentTimeMillis() - startTime}ms")
             return@flow
         } else {
             emit(open to emptyList())

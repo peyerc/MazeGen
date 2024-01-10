@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import ch.reason.mazegen.ui.theme.MazeGenTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
@@ -56,12 +58,11 @@ import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun Maze(
-    width: Int,
-    height: Int,
     directions: List<Direction> = emptyList(),
     goalReached: () -> Unit = {}
 ) {
-//    var tileSize by remember { mutableStateOf(Size.Zero) }
+    var width by remember { mutableStateOf(5) }
+    var height by remember { mutableStateOf(10) }
     val maze = remember { mutableStateMapOf<Coordinates, Cell>() }
     val path = remember { mutableStateListOf<Cell>() }
     var start by remember { mutableStateOf<Coordinates?>(null) }
@@ -108,7 +109,7 @@ fun Maze(
                             modifyCells(maze) { it.copy(calculating = it.coordinates in calculating) }
                             solverPath.addAll(path)
                             delay(speed)
-                        }.onCompletion { error ->
+                        }.onCompletion {
                             modifyCells(maze) { it.copy(calculating = false) }
                             for (coordinates in solverPath) {
                                 maze[coordinates]?.let { cell ->
@@ -118,13 +119,18 @@ fun Maze(
                             }
                             isAutoSolving = false
                         }
+                        .catch { println("Error while solving: $it") }
                         .launchIn(this)
                 }
             }
         }
     }
 
-    LaunchedEffect(start) {
+    LaunchedEffect(start, width) {
+
+        //TODO: calculate height based on screen and width
+        height = width * 2
+
         maze.clear()
         maze.putAll(generateMaze(height, width))
 
@@ -228,95 +234,21 @@ fun Maze(
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
-        val wallWidth = 8.dp
         Column(
             modifier = Modifier.fillMaxHeight()
         ) {
             maze.values.sortedBy { it.coordinates.y }.groupBy { it.coordinates.y }
                 .forEach { (_, row) ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().weight(1f)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
                     ) {
                         row.sortedBy { it.coordinates.x }.forEach { cell ->
                             if (cell.coordinates == currentCoordinates && cell.goal) {
                                 goalReached()
                             }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight().weight(1f)
-                                    .clickable(
-                                        onClick = { onCellClicked(cell) }
-                                    )
-                                    .background(
-                                        if (cell.start) Color.LightGray
-                                        else if (cell.goal) Color.Black
-                                        else if (cell.calculating) Color.Red
-                                        else if (cell.visited) Color(0xFF4C00FF)
-                                        else Color(0xFFA23DDC)
-                                    )
-                                    .border(
-                                        width = .1.dp,
-                                        color = Color.Black.copy(alpha = 0.1f),
-                                    )
-                                    .drawBehind {
-
-                                        if (cell.coordinates == currentCoordinates) {
-                                            drawCircle(
-                                                color = Color(0xFF2FFF00),
-                                                radius = size.width / 4,
-                                                center = Offset(
-                                                    size.width / 2,
-                                                    size.height / 2
-                                                ),
-                                            )
-                                        }
-
-                                        val wallWidthPx = wallWidth.toPx()
-                                        val color = Color(0xFFF5BF00)
-                                        for (wall in cell.walls) {
-                                            when (wall) {
-                                                Direction.North ->
-                                                    drawLine(
-                                                        color = color,
-                                                        start = Offset(0f, 0f),
-                                                        end = Offset(size.width, 0f),
-                                                        strokeWidth = wallWidthPx,
-                                                    )
-
-                                                Direction.East ->
-                                                    drawLine(
-                                                        color = color,
-                                                        start = Offset(size.width, 0f),
-                                                        end = Offset(size.width, size.height),
-                                                        strokeWidth = wallWidthPx,
-                                                    )
-
-                                                Direction.South ->
-                                                    drawLine(
-                                                        color = color,
-                                                        start = Offset(size.width, size.height),
-                                                        end = Offset(0f, size.height),
-                                                        strokeWidth = wallWidthPx,
-                                                    )
-
-                                                Direction.West ->
-                                                    drawLine(
-                                                        color = color,
-                                                        start = Offset(0f, size.height),
-                                                        end = Offset(0f, 0f),
-                                                        strokeWidth = wallWidthPx,
-                                                    )
-                                            }
-                                        }
-                                    }
-                            ) {
-//                                Text(
-//                                    text = cell.distanceToStart.toString(),
-//                                    fontSize = 12.sp,
-//                                    modifier = Modifier.align(Alignment.Center),
-//                                    color = if (cell.goal) Color.White else Color.Black,
-//                                )
-                            }
+                            Tile(cell, ::onCellClicked, currentCoordinates)
                         }
                     }
                 }
@@ -349,36 +281,20 @@ fun Maze(
                 .padding(4.dp)
         )
 
-        Slider(
+        VerticalSlider(
             value = speed.inWholeMilliseconds.toFloat(),
             valueRange = 1f..250f,
             onValueChange = { speed = it.toInt().milliseconds },
             steps = 9,
-            modifier = Modifier
-                .graphicsLayer {
-                    rotationZ = 270f
-                    transformOrigin = TransformOrigin(0f, 0f)
-                }
-                .layout { measurable, constraints ->
-                    val placeable = measurable.measure(
-                        Constraints(
-                            minWidth = constraints.minHeight,
-                            maxWidth = constraints.maxHeight,
-                            minHeight = constraints.minWidth,
-                            maxHeight = constraints.maxWidth,
-                        )
-                    )
-                    layout(placeable.height, placeable.width) {
-                        placeable.place(-placeable.width, 0)
-                    }
-                }
-                .width(400.dp)
-                .padding(
-                    start = WindowInsets.navigationBars
-                        .asPaddingValues()
-                        .calculateStartPadding(LayoutDirection.Ltr)
-                )
-                .align(Alignment.CenterStart),
+            modifier = Modifier.align(Alignment.CenterStart),
+        )
+
+        VerticalSlider(
+            value = width.toFloat(),
+            valueRange = 5f..20f,
+            onValueChange = { width = it.toInt() },
+            steps = 14,
+            modifier = Modifier.align(Alignment.CenterEnd),
         )
 
         Text(
@@ -394,6 +310,128 @@ fun Maze(
                 .background(Color.White.copy(alpha = 0.65f))
                 .padding(4.dp)
         )
+    }
+}
+
+@Composable
+fun VerticalSlider(
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit,
+    steps: Int,
+    modifier: Modifier = Modifier,
+) {
+    Slider(
+        value = value,
+        valueRange = valueRange,
+        onValueChange = onValueChange,
+        steps = steps,
+        modifier = modifier
+            .graphicsLayer {
+                rotationZ = 270f
+                transformOrigin = TransformOrigin(0f, 0f)
+            }
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(
+                    Constraints(
+                        minWidth = constraints.minHeight,
+                        maxWidth = constraints.maxHeight,
+                        minHeight = constraints.minWidth,
+                        maxHeight = constraints.maxWidth,
+                    )
+                )
+                layout(placeable.height, placeable.width) {
+                    placeable.place(-placeable.width, 0)
+                }
+            }
+            .width(400.dp)
+            .padding(
+                horizontal = WindowInsets.navigationBars
+                    .asPaddingValues()
+                    .calculateStartPadding(LayoutDirection.Ltr)
+            ),
+    )
+}
+
+@Composable
+fun RowScope.Tile(cell: Cell, onCellClicked: (Cell) -> Unit, currentCoordinates: Coordinates?, modifier: Modifier = Modifier) {
+    val wallWidth = 8.dp
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .weight(1f)
+            .clickable(
+                onClick = { onCellClicked(cell) }
+            )
+            .background(
+                if (cell.start) Color.LightGray
+                else if (cell.goal) Color.Black
+                else if (cell.calculating) Color.Red
+                else if (cell.visited) Color(0xFF4C00FF)
+                else Color(0xFFA23DDC)
+            )
+            .border(
+                width = .1.dp,
+                color = Color.Black.copy(alpha = 0.1f),
+            )
+            .drawBehind {
+
+                if (cell.coordinates == currentCoordinates) {
+                    drawCircle(
+                        color = Color(0xFF2FFF00),
+                        radius = size.width / 4,
+                        center = Offset(
+                            size.width / 2,
+                            size.height / 2
+                        ),
+                    )
+                }
+
+                val wallWidthPx = wallWidth.toPx()
+                val color = Color(0xFFF5BF00)
+                for (wall in cell.walls) {
+                    when (wall) {
+                        Direction.North ->
+                            drawLine(
+                                color = color,
+                                start = Offset(0f, 0f),
+                                end = Offset(size.width, 0f),
+                                strokeWidth = wallWidthPx,
+                            )
+
+                        Direction.East ->
+                            drawLine(
+                                color = color,
+                                start = Offset(size.width, 0f),
+                                end = Offset(size.width, size.height),
+                                strokeWidth = wallWidthPx,
+                            )
+
+                        Direction.South ->
+                            drawLine(
+                                color = color,
+                                start = Offset(size.width, size.height),
+                                end = Offset(0f, size.height),
+                                strokeWidth = wallWidthPx,
+                            )
+
+                        Direction.West ->
+                            drawLine(
+                                color = color,
+                                start = Offset(0f, size.height),
+                                end = Offset(0f, 0f),
+                                strokeWidth = wallWidthPx,
+                            )
+                    }
+                }
+            }
+    ) {
+//                                Text(
+//                                    text = cell.distanceToStart.toString(),
+//                                    fontSize = 12.sp,
+//                                    modifier = Modifier.align(Alignment.Center),
+//                                    color = if (cell.goal) Color.White else Color.Black,
+//                                )
     }
 }
 
@@ -450,6 +488,6 @@ enum class Direction(val coordinates: Coordinates) {
 @Composable
 fun MazePreview() {
     MazeGenTheme {
-        Maze(5, 10)
+        Maze()
     }
 }

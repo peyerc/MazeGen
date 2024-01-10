@@ -1,5 +1,8 @@
 package ch.reason.mazegen
 
+import androidx.compose.runtime.Stable
+
+@Stable
 data class Cell(
     val coordinates: Coordinates,
     val walls: List<Direction> = emptyList(),
