@@ -48,9 +48,7 @@ class MainActivity : ComponentActivity() {
 
                     Maze(
                         directions = directions,
-                        goalReached = {
-                            println("Goal reached!!")
-                        }
+                        goalReached = { println("Goal reached!!") }
                     )
                 }
             }

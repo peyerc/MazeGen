@@ -41,9 +41,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import ch.reason.mazegen.ui.theme.MazeGenTheme
@@ -62,7 +64,8 @@ fun Maze(
     goalReached: () -> Unit = {}
 ) {
     var width by remember { mutableStateOf(5) }
-    var height by remember { mutableStateOf(10) }
+    var height by remember { mutableStateOf(5) }
+    var mazeSize by remember { mutableStateOf(IntSize(1,1)) }
     val maze = remember { mutableStateMapOf<Coordinates, Cell>() }
     val path = remember { mutableStateListOf<Cell>() }
     var start by remember { mutableStateOf<Coordinates?>(null) }
@@ -126,10 +129,16 @@ fun Maze(
         }
     }
 
-    LaunchedEffect(start, width) {
+    LaunchedEffect(width) {
+        resetGame()
+    }
 
-        //TODO: calculate height based on screen and width
-        height = width * 2
+    LaunchedEffect(start, width, mazeSize) {
+
+        // calculate height from configured width and mazeSize dimensions
+        height = if (mazeSize.width != 0) {
+            (width.toFloat() / mazeSize.width * mazeSize.height).toInt()
+        } else 0
 
         maze.clear()
         maze.putAll(generateMaze(height, width))
@@ -232,7 +241,9 @@ fun Maze(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { mazeSize = it.size }
     ) {
         Column(
             modifier = Modifier.fillMaxHeight()
